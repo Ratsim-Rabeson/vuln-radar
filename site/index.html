@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vuln Radar</title>
+<meta name="description" content="Live feed of the latest vulnerabilities worldwide — NVD, CISA KEV, GitHub Advisories — with weekly newsletter and alerts.">
+<link rel="alternate" type="application/rss+xml" title="Vuln Radar — Critical, High & Exploited" href="feed.xml">
+<link rel="alternate" type="application/rss+xml" title="Vuln Radar — CISA KEV" href="kev.xml">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-row">
+    <a class="brand" href="#feed"><span aria-hidden="true">🛡️</span> Vuln Radar</a>
+    <nav class="tabs" aria-label="Sections">
+      <a href="#feed" data-tab="feed">Live feed</a>
+      <a href="#newsletters" data-tab="newsletters">Newsletters</a>
+      <a href="#subscribe" data-tab="subscribe">Get alerts</a>
+    </nav>
+    <button id="theme" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- FEED -->
+  <section id="view-feed" class="view">
+    <p class="meta" id="meta">Loading latest vulnerabilities…</p>
+    <div class="stats" id="stats"></div>
+
+    <div class="filters" role="search">
+      <input id="q" type="search" placeholder="Search CVE, vendor, product, package, keyword…" aria-label="Search">
+      <div class="filter-row">
+        <div class="chips" id="sev-chips" aria-label="Severity">
+          <button data-sev="CRITICAL" class="chip sev-CRITICAL">Critical</button>
+          <button data-sev="HIGH" class="chip sev-HIGH">High</button>
+          <button data-sev="MEDIUM" class="chip sev-MEDIUM">Medium</button>
+          <button data-sev="LOW" class="chip sev-LOW">Low</button>
+          <button data-sev="UNKNOWN" class="chip sev-UNKNOWN">Unscored</button>
+        </div>
+        <label class="toggle"><input type="checkbox" id="kev-only"> Exploited only (KEV)</label>
+        <select id="source" aria-label="Source">
+          <option value="">All sources</option>
+          <option>NVD</option><option>CISA KEV</option><option>GitHub Advisory</option>
+        </select>
+        <select id="range" aria-label="Time range">
+          <option value="1">Last 24 h</option>
+          <option value="3">Last 3 days</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+        <select id="sort" aria-label="Sort">
+          <option value="date">Newest first</option>
+          <option value="cvss">Highest CVSS</option>
+          <option value="epss">Highest exploit probability</option>
+        </select>
+      </div>
+    </div>
+
+    <p class="result-count" id="count"></p>
+    <ol class="list" id="list"></ol>
+    <button id="more" class="btn" hidden>Show more</button>
+  </section>
+
+  <!-- NEWSLETTERS -->
+  <section id="view-newsletters" class="view" hidden>
+    <h1>Weekly newsletter</h1>
+    <p class="lead">Every Monday: exploited vulnerabilities added to CISA KEV, the week's top critical CVEs, high-EPSS issues and the most affected vendors and ecosystems.</p>
+    <div class="nl-layout">
+      <ul class="nl-list" id="nl-list"><li class="muted">Loading…</li></ul>
+      <div class="nl-frame-wrap"><iframe id="nl-frame" title="Newsletter issue" loading="lazy"></iframe></div>
+    </div>
+  </section>
+
+  <!-- SUBSCRIBE -->
+  <section id="view-subscribe" class="view" hidden>
+    <h1>Get alerts & the newsletter</h1>
+    <div class="cards">
+      <article class="card">
+        <h2>📬 Weekly newsletter by email</h2>
+        <p>Each issue is published as a GitHub Release. On the repository page click <b>Watch → Custom → Releases</b> and GitHub emails it to you every Monday.</p>
+        <a class="btn" id="watch-link" href="#" target="_blank" rel="noopener">Open repository</a>
+      </article>
+      <article class="card">
+        <h2>🚨 Real-time critical alerts</h2>
+        <p>Critical (CVSS ≥ 9) and newly exploited vulnerabilities open an issue labelled <code>vuln-alert</code>. Watch the repo (<b>Custom → Issues</b>) to be notified.</p>
+      </article>
+      <article class="card">
+        <h2>📡 RSS / Atom feeds</h2>
+        <ul class="feeds">
+          <li><a href="feed.xml">Critical, High & Exploited</a></li>
+          <li><a href="critical.xml">Critical & Exploited only</a></li>
+          <li><a href="kev.xml">CISA KEV (actively exploited)</a></li>
+          <li><a href="all.xml">Everything</a></li>
+        </ul>
+        <p class="muted">Works with Feedly, Inoreader, Thunderbird, Slack <code>/feed</code>, Teams and Discord RSS bots.</p>
+      </article>
+      <article class="card">
+        <h2>🔔 Phone push (ntfy)</h2>
+        <p>If the maintainer enabled ntfy, install the <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy app</a> and subscribe to the topic <code id="ntfy-topic">configured in the repo</code>.</p>
+      </article>
+      <article class="card">
+        <h2>🧩 Raw data / API</h2>
+        <p>Everything shown here is a static JSON file, refreshed every 3 hours: <a href="data/vulns.json">data/vulns.json</a>. Free to use in your own tools.</p>
+      </article>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  Data: <a href="https://nvd.nist.gov" target="_blank" rel="noopener">NIST NVD</a> ·
+  <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener">CISA KEV</a> ·
+  <a href="https://github.com/advisories" target="_blank" rel="noopener">GitHub Advisory Database</a> ·
+  <a href="https://www.first.org/epss/" target="_blank" rel="noopener">FIRST EPSS</a>.
+  This product uses the NVD API but is not endorsed or certified by the NVD.
+</footer>
+
+<template id="tpl-item">
+  <li class="item">
+    <details>
+      <summary>
+        <div class="item-head">
+          <span class="sev"></span>
+          <a class="vid" target="_blank" rel="noopener"></a>
+          <span class="badges"></span>
+          <time class="when"></time>
+        </div>
+        <div class="title"></div>
+      </summary>
+      <div class="body">
+        <p class="desc"></p>
+        <dl class="facts"></dl>
+        <ul class="refs"></ul>
+      </div>
+    </details>
+  </li>
+</template>
+<script src="app.js"></script>
+</body>
+</html>

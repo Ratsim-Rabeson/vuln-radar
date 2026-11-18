@@ -1,0 +1,129 @@
+name: Update vulnerabilities
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"   # every 3 hours: fetch, alert, redeploy
+    - cron: "23 7 * * 1"     # Mondays 07:23 UTC: also publish the weekly newsletter
+  workflow_dispatch:
+    inputs:
+      newsletter:
+        description: "Also publish this week's newsletter"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths: ["site/**", "vulnradar/**", ".github/workflows/update.yml"]
+
+permissions:
+  contents: write   # push data branch, newsletter archive, releases
+  issues: write     # alert issues
+  pages: write
+  id-token: write
+
+concurrency:
+  group: vuln-radar
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # ---- tuning (Settings → Secrets and variables → Actions → Variables)
+      MIN_CVSS: ${{ vars.MIN_CVSS || '9.0' }}
+      RETENTION_DAYS: ${{ vars.RETENTION_DAYS || '30' }}
+      NVD_DAYS: ${{ vars.NVD_DAYS || '14' }}
+      CREATE_ISSUES: ${{ vars.CREATE_ISSUES || 'true' }}
+      NTFY_TOPIC: ${{ vars.NTFY_TOPIC }}
+      # ---- optional secrets (Settings → Secrets and variables → Actions → Secrets)
+      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_FROM: ${{ secrets.SMTP_FROM }}
+      ALERT_RECIPIENTS: ${{ secrets.ALERT_RECIPIENTS }}
+      NEWSLETTER_RECIPIENTS: ${{ secrets.NEWSLETTER_RECIPIENTS }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Restore data from the 'data' branch
+        run: |
+          mkdir -p data
+          if git ls-remote --exit-code --heads origin data >/dev/null; then
+            git fetch --depth 1 origin data
+            git archive FETCH_HEAD | tar -x -C data
+            echo "Restored: $(ls data)"
+          else
+            echo "No data branch yet (first run)."
+          fi
+
+      - name: Ensure alert label exists
+        if: env.CREATE_ISSUES == 'true'
+        run: gh label create vuln-alert --color B91C1C --description "New critical / exploited vulnerabilities" 2>/dev/null || true
+
+      - name: Fetch sources and send alerts
+        if: github.event_name != 'push'
+        env:
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: python -m vulnradar update
+
+      - name: Write weekly newsletter
+        id: nl
+        if: github.event.schedule == '23 7 * * 1' || inputs.newsletter
+        env:
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: python -m vulnradar newsletter
+
+      - name: Build site
+        env:
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: python -m vulnradar build
+
+      - name: Save data to the 'data' branch (single commit, no history bloat)
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "vuln-radar-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          export GIT_INDEX_FILE="$RUNNER_TEMP/data.index"
+          (cd data && git --git-dir=../.git --work-tree=. add -A -f .)
+          tree=$(git write-tree)
+          commit=$(git commit-tree "$tree" -m "data snapshot $(date -u +%FT%TZ)")
+          git push -f origin "$commit:refs/heads/data"
+
+      - name: Archive newsletter and publish it as a Release
+        if: steps.nl.outcome == 'success'
+        run: |
+          git add newsletters
+          git commit -m "newsletter: ${{ steps.nl.outputs.id }}" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
+          gh release create "newsletter-${{ steps.nl.outputs.id }}" \
+            --title "🛡️ Vuln Radar Weekly — ${{ steps.nl.outputs.id }}" \
+            --notes-file "${{ steps.nl.outputs.md }}" --latest || echo "release exists"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
