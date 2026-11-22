@@ -1,15 +1,15 @@
 {
  "id": "2026-W47",
- "start": "2026-11-11T00:00:00Z",
- "end": "2026-11-18T00:00:00Z",
+ "start": "2026-11-15T00:00:00Z",
+ "end": "2026-11-22T00:00:00Z",
  "counts": {
-  "CRITICAL": 306,
-  "HIGH": 1462,
-  "MEDIUM": 1505,
-  "LOW": 270,
+  "CRITICAL": 373,
+  "HIGH": 1628,
+  "MEDIUM": 1897,
+  "LOW": 283,
   "NONE": 0,
-  "UNKNOWN": 54,
-  "KEV": 7,
-  "TOTAL": 3597
+  "UNKNOWN": 433,
+  "KEV": 9,
+  "TOTAL": 4614
  }
 }
